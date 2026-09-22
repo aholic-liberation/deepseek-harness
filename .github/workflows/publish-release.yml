@@ -1,0 +1,40 @@
+name: Publish installer to Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: '构建产物所在的 run ID（默认取上次成功的构建）'
+        required: false
+        default: '35618842974'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deepseek-harness-win-x64-installer
+          path: dist
+          run-id: ${{ github.event.inputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          exe=$(ls dist/*.exe)
+          echo "Found installer: $exe"
+          tag="dsh-win-x64"
+          # 幂等：先删旧 release+tag，再重建
+          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" "$exe" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "DeepSeek Harness Windows installer (unsigned)" \
+            --notes "未签名、自包含的 DeepSeek Harness Windows 安装器（从 deepseek-ai/deepseek-harness 构建，含内置 Node/Python 运行时）。首次运行可能触发 SmartScreen，点「更多信息 → 仍要运行」。"
